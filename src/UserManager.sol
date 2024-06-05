@@ -25,7 +25,6 @@ import "./utils/EmergencyWithdraw.sol";
 import "./utils/RefundDeposit.sol";
 import "./libraries/X18Helper.sol";
 
-/// @custom:oz-upgrades-from src/oldVersion/UserManagerV0.sol:UserManagerV0
 contract UserManager is
     IUserManager,
     EmergencyStop,

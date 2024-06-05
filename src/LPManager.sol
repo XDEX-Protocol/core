@@ -548,7 +548,7 @@ contract LPManager is
         address _poolAddress = poolAddress[poolIndex];
 
         if (depositAssetamount < userMinDepositAssetOnce) {
-            revert("amount is too small");
+            revert AmountTooSmall();
         }
 
         uint256 maxCanUseAsset = getPoolMaxAvailableAsset(
@@ -557,7 +557,7 @@ contract LPManager is
         );
 
         if (maxCanUseAsset < depositAssetamount) {
-            revert("amount is large than pool max can accept asset");
+            revert AmountLargeThanPoolMaxCanDeposit();
         }
 
         uint256 userCurrentAsset = convertToPoolAssetAmount(
@@ -574,7 +574,7 @@ contract LPManager is
             ? 0
             : depositAssetamount;
         if (canUseAsset == 0) {
-            revert("amount is large than user max can deposit amount");
+            revert AmountLargeThanUserMaxCanDeposit();
         }
 
         uint256 maxConvertShare = convertToPoolShares(
@@ -604,7 +604,7 @@ contract LPManager is
             ? poolMaxHoldAsset - poolCurrentHoldAsset
             : 0;
         if (maxCanUseAsset <= 0) {
-            revert("pool is full");
+            revert PoolIsFull();
         }
 
         return maxCanUseAsset;

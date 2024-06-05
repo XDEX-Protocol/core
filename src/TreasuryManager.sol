@@ -95,7 +95,7 @@ contract TreasuryManager is
             Action2 action = Action2(uint8(data[0]));
 
             if (action == Action2.addTreasuryLockConfig) {
-                addLockConfig(data[1:]);
+                addLockConfig(data);
             } else if (action == Action2.processTreasuryReleasedAsset) {
                 processReleasedAsset(data);
             } else if (action == Action2.processTreasuryUnLockAsset) {
@@ -110,6 +110,19 @@ contract TreasuryManager is
                 transferUnLockAssetToOtherModule(data);
             }
         }
+    }
+
+    function claimUnLockAsset(address asset) external returns (uint256 amount) {
+        if (userCanClaimUnlockAssetAmount[asset][msg.sender] == 0) {
+            return amount;
+        }
+
+        amount = userCanClaimUnlockAssetAmount[asset][msg.sender];
+        userCanClaimUnlockAssetAmount[asset][msg.sender] = 0;
+
+        IVault(vaultAddress).withdraw(msg.sender, asset, amount);
+
+        usedUnlockAsset[asset] -= amount;
     }
 
     function claimReleasedAsset(
@@ -178,6 +191,17 @@ contract TreasuryManager is
             userCanClaimAssetAmount[index][walletAddress] -
             userClaimedAssetAmount[index][walletAddress];
         return (amount, info.asset, IERC20Decimals(info.asset).decimals());
+    }
+
+    function getAvailableUnlockAmount(
+        address asset,
+        address walletAddress
+    ) external view returns (uint256 amount, address asset_, uint8 decimal) {
+        return (
+            userCanClaimUnlockAssetAmount[asset][walletAddress],
+            asset,
+            IERC20Decimals(asset).decimals()
+        );
     }
 
     function _refreshCanReleaseAssetAmount(
@@ -315,6 +339,7 @@ contract TreasuryManager is
                 usedUnlockAsset[lockAsset]
         ) {
             revert InsufficientFreeAssetAmount(
+                lockAsset,
                 IERC20(lockAsset).balanceOf(vaultAddress),
                 lockAssetAmount,
                 totalLockedAsset[lockAsset],
@@ -442,10 +467,10 @@ contract TreasuryManager is
         address[] memory recipients,
         uint256[] memory amountX18List
     ) private {
-        require(
-            recipients.length == amountX18List.length,
-            "list length not equal"
-        );
+        if (recipients.length != amountX18List.length) {
+            revert InvalidDataLength();
+        }
+
         uint256 canUseAmount = IERC20(token).balanceOf(vaultAddress);
         canUseAmount -= totalLockedAsset[token];
         canUseAmount -= usedUnlockAsset[token];
@@ -459,7 +484,10 @@ contract TreasuryManager is
             token
         );
 
-        require(useAmount <= canUseAmount, "insufficient unlocked asset");
+        if (useAmount >= canUseAmount) {
+            revert InsufficientUnlockAsset(token, useAmount, canUseAmount);
+        }
+
         for (uint256 i = 0; i < recipients.length; i++) {
             uint256 amount = X18Helper.fromX18ToNormalDecimal(
                 amountX18List[i],
@@ -470,6 +498,7 @@ contract TreasuryManager is
                 IVault(vaultAddress).withdraw(recipients[i], token, amount);
             } else {
                 userCanClaimUnlockAssetAmount[token][recipients[i]] += amount;
+                usedUnlockAsset[token] += amount;
             }
         }
     }
@@ -485,11 +514,13 @@ contract TreasuryManager is
 
         uint256 amount = X18Helper.fromX18ToNormalDecimal(amountX18, token);
 
-        require(amount <= canUseAmount, "insufficient unlocked asset");
-        require(
-            otherModuleAddress[moduleIndex] != address(0x0),
-            "module not init"
-        );
+        if (amount <= canUseAmount) {
+            revert InsufficientUnlockAsset(token, amount, canUseAmount);
+        }
+
+        if (otherModuleAddress[moduleIndex] == address(0x0)) {
+            revert ModuleNotInit(moduleIndex);
+        }
 
         IVault(vaultAddress).withdraw(
             otherModuleAddress[moduleIndex],

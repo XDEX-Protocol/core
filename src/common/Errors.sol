@@ -18,6 +18,8 @@ error TokenNotSupport(address token);
 
 error InvalidDataLength();
 
+error ModuleNotInit(uint64 moduleIndex);
+
 // exchange errors
 error PreHashNotMatch(bytes32 want, bytes32 has);
 
@@ -88,7 +90,13 @@ error InvalidBuyerAddress(address from);
 
 error AmountTooSmall();
 
+error AmountLargeThanPoolMaxCanDeposit();
+
+error AmountLargeThanUserMaxCanDeposit();
+
 error RedeemRequestAlreadyProcessed(uint64 requestId);
+
+error PoolIsFull();
 
 // treasury manager errors
 error InvalidLockAmount();
@@ -100,8 +108,11 @@ error InvalidLockConfig();
 error LockTypeNotSupport();
 
 error InsufficientFreeAssetAmount(
+    address asset,
     uint256 currentSum,
     uint256 want,
     uint256 locked,
     uint256 released
 );
+
+error InsufficientUnlockAsset(address token, uint256 want, uint256 has);
