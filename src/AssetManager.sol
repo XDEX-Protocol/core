@@ -11,8 +11,11 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import "./interfaces/IERC20Decimals.sol";
+import "./interfaces/IOffChainStruct.sol";
+import "./interfaces/ITreasuryManager.sol";
 
 contract AssetManager is
+    IOffChainStruct,
     Initializable,
     OwnableUpgradeable,
     UUPSUpgradeable,
@@ -22,26 +25,16 @@ contract AssetManager is
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
 
-    enum AssetType {
-        FoundingTeam,
-        EarlyInvestors,
-        InitialStage,
-        ContinuousMotivation,
-        Ecosystem,
-        Community,
-        Advisor
-    }
-
     address[] public signerList;
     uint public threshold;
     address public manager;
 
     uint startTime;
     address asset;
-    address treasuryVaultAddress;
-    mapping(AssetType => uint256) public canReleaseAsset;
-    mapping(AssetType => uint256) public releasedAsset;
-    mapping(AssetType => uint) public lockTimeInDays;
+    address treasuryAddress;
+    mapping(TreasuryAssetType => uint256) public canReleaseAsset;
+    mapping(TreasuryAssetType => uint256) public releasedAsset;
+    mapping(TreasuryAssetType => uint) public lockTimeInDays;
     uint[] dayCntOfMonth;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -55,7 +48,7 @@ contract AssetManager is
         address[] memory signerList_,
         uint8 threshold_,
         address asset_,
-        address treasuryVaultAddress_
+        address treasuryAddress_
     ) public initializer {
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
@@ -65,15 +58,15 @@ contract AssetManager is
         threshold = threshold_;
 
         asset = asset_;
-        treasuryVaultAddress = treasuryVaultAddress_;
+        treasuryAddress = treasuryAddress_;
 
-        canReleaseAsset[AssetType.FoundingTeam] = 2 * 10 ** 8;
-        canReleaseAsset[AssetType.EarlyInvestors] = 2 * 10 ** 8;
-        canReleaseAsset[AssetType.InitialStage] = 2 * 10 ** 8;
-        canReleaseAsset[AssetType.ContinuousMotivation] = 3 * 10 ** 8;
-        canReleaseAsset[AssetType.Ecosystem] = 5 * 10 ** 7;
-        canReleaseAsset[AssetType.Community] = 4 * 10 ** 7;
-        canReleaseAsset[AssetType.Advisor] = 1 * 10 ** 7;
+        canReleaseAsset[TreasuryAssetType.FoundingTeam] = 2 * 10 ** 8;
+        canReleaseAsset[TreasuryAssetType.EarlyInvestors] = 2 * 10 ** 8;
+        canReleaseAsset[TreasuryAssetType.InitialStage] = 2 * 10 ** 8;
+        canReleaseAsset[TreasuryAssetType.ContinuousMotivation] = 3 * 10 ** 8;
+        canReleaseAsset[TreasuryAssetType.Ecosystem] = 5 * 10 ** 7;
+        canReleaseAsset[TreasuryAssetType.Community] = 4 * 10 ** 7;
+        canReleaseAsset[TreasuryAssetType.Advisor] = 1 * 10 ** 7;
     }
 
     function start(
@@ -85,25 +78,30 @@ contract AssetManager is
     ) external returns (bool success) {
         require(dayCntOfMonth_.length == 24, "must give 24 month day count");
 
-        if (IERC20(asset).balanceOf(address(this)) != 10 ** 9) {
+        uint8 decimal = IERC20Decimals(asset).decimals();
+        if (IERC20(asset).balanceOf(address(this)) != 10 ** 9 * 10 ** decimal) {
             return false;
         }
 
         startTime = block.timestamp;
         dayCntOfMonth = dayCntOfMonth_;
 
-        lockTimeInDays[AssetType.FoundingTeam] = foundingTeamLockTimeInDays;
-        lockTimeInDays[AssetType.EarlyInvestors] = EarlyInvestorLockTimeInDays;
         lockTimeInDays[
-            AssetType.ContinuousMotivation
+            TreasuryAssetType.FoundingTeam
+        ] = foundingTeamLockTimeInDays;
+        lockTimeInDays[
+            TreasuryAssetType.EarlyInvestors
+        ] = EarlyInvestorLockTimeInDays;
+        lockTimeInDays[
+            TreasuryAssetType.ContinuousMotivation
         ] = ContinuousMotivationLockTimeInDays;
-        lockTimeInDays[AssetType.Community] = CommunityLockTimeInDays;
+        lockTimeInDays[TreasuryAssetType.Community] = CommunityLockTimeInDays;
 
         return true;
     }
 
     function receiveLinearReleaseAsset(
-        AssetType assetType,
+        TreasuryAssetType assetType,
         address targetAddress,
         bytes[] calldata signList
     )
@@ -128,7 +126,7 @@ contract AssetManager is
 
         uint8 decimal = IERC20Decimals(asset).decimals();
         IERC20(asset).safeTransfer(
-            treasuryVaultAddress,
+            targetAddress,
             realReleaseAmount * 10 ** decimal
         );
 
@@ -136,25 +134,28 @@ contract AssetManager is
     }
 
     function releaseToTreasury(
-        AssetType assetType
+        TreasuryAssetType assetType
     )
         external
         afterStart
-        alreadySetTreasuryVaultAddress
+        alreadySetTreasuryAddress
         onlyManager
         returns (bool success, uint256 amount)
     {
         if (
             releasedAsset[assetType] == 0 &&
-            startTime + lockTimeInDays[assetType] * 1 days < block.timestamp
+            startTime + lockTimeInDays[assetType] * 1 days <= block.timestamp
         ) {
             uint8 decimal = IERC20Decimals(asset).decimals();
             amount = canReleaseAsset[assetType];
 
             releasedAsset[assetType] = amount;
 
-            IERC20(asset).safeTransfer(
-                treasuryVaultAddress,
+            IERC20(asset).approve(treasuryAddress, 0);
+            IERC20(asset).approve(treasuryAddress, amount * 10 ** decimal);
+            ITreasuryManager(treasuryAddress).deposit(
+                assetType,
+                asset,
                 amount * 10 ** decimal
             );
 
@@ -189,7 +190,7 @@ contract AssetManager is
     }
 
     function getLinearCanReleaseMonth(
-        AssetType assetType
+        TreasuryAssetType assetType
     ) private view returns (uint) {
         uint canRealseTime = startTime + lockTimeInDays[assetType] * 1 days;
         uint canReleaseDays = (canRealseTime - block.timestamp) / 60 / 24;
@@ -211,16 +212,16 @@ contract AssetManager is
         _;
     }
 
-    modifier afterLinearCanReleaseTime(AssetType assetType) {
+    modifier afterLinearCanReleaseTime(TreasuryAssetType assetType) {
         require(startTime > 0, "not start");
         uint canRealseTime = startTime + lockTimeInDays[assetType] * 1 days;
         require(canRealseTime < block.timestamp, "linear release not start");
         _;
     }
 
-    modifier alreadySetTreasuryVaultAddress() {
+    modifier alreadySetTreasuryAddress() {
         require(
-            treasuryVaultAddress != address(0x0),
+            treasuryAddress != address(0x0),
             "treasury vault address not set"
         );
         _;

@@ -47,18 +47,25 @@ contract TreasuryManager is
     address[] public signerList;
     uint public threshold;
 
-    mapping(uint64 => OnChainLockConfig) public lockConfigMap; // Map<configIndex, config> lock config
-    mapping(address => uint256) public totalLockedAsset; // Map<asset, amount>
-    mapping(address => uint256) public totalReleasedAsset; // Map<asset, amount>
-    mapping(address => uint256) public usedUnlockAsset; // Map<asset, amount>
-    mapping(uint64 => uint256) public canReleaseAssetAmount; // Map<configIndex, amount>
-    mapping(uint64 => uint256) public releasedAssetAmount; // Map<configIndex, amount>
-    mapping(uint64 => mapping(address => uint256))
-        public userCanClaimAssetAmount; // Map<configIndex, Map<walletAddress, amount>>
-    mapping(uint64 => mapping(address => uint256))
-        public userClaimedAssetAmount; // Map<configIndex, Map<walletAddress, amount>>
-    mapping(address => mapping(address => uint256))
-        public userCanClaimUnlockAssetAmount; // Map<coinAddress, Map<walletAddress, amount>>
+    mapping(TreasuryAssetType => mapping(address => uint256)) public totalAsset; // Map<AssetType, Map<asset, amount>>
+    mapping(TreasuryAssetType => mapping(uint64 => OnChainLockConfig))
+        public lockConfigMap; // Map<AssetType, Map<configIndex, config>> lock config
+    mapping(TreasuryAssetType => mapping(address => uint256))
+        public totalLockedAsset; // Map<AssetType, Map<asset, amount>>
+    mapping(TreasuryAssetType => mapping(address => uint256))
+        public totalReleasedAsset; // Map<AssetType, Map<asset, amount>>
+    mapping(TreasuryAssetType => mapping(address => uint256))
+        public usedUnlockAsset; // Map<AssetType, Map<asset, amount>>
+    mapping(TreasuryAssetType => mapping(uint64 => uint256))
+        public canReleaseAssetAmount; // Map<AssetType, Map<configIndex, amount>>
+    mapping(TreasuryAssetType => mapping(uint64 => uint256))
+        public releasedAssetAmount; // Map<AssetType, Map<configIndex, amount>>
+    mapping(TreasuryAssetType => mapping(uint64 => mapping(address => uint256)))
+        public userCanClaimAssetAmount; // Map<AssetType, Map<configIndex, Map<walletAddress, amount>>>
+    mapping(TreasuryAssetType => mapping(uint64 => mapping(address => uint256)))
+        public userClaimedAssetAmount; // Map<AssetType, Map<configIndex, Map<walletAddress, amount>>>
+    mapping(TreasuryAssetType => mapping(address => mapping(address => uint256)))
+        public userCanClaimUnlockAssetAmount; // Map<AssetType, Map<coinAddress, Map<walletAddress, amount>>>
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -80,6 +87,16 @@ contract TreasuryManager is
     }
 
     receive() external payable {}
+
+    function deposit(
+        TreasuryAssetType assetType,
+        address asset,
+        uint256 amount
+    ) external {
+        IERC20(asset).safeTransferFrom(msg.sender, vaultAddress, amount);
+
+        totalAsset[assetType][asset] += amount;
+    }
 
     function batchProcess(
         bytes[] calldata waitProcessData
@@ -110,53 +127,61 @@ contract TreasuryManager is
         }
     }
 
-    function claimUnLockAsset(address asset) external returns (uint256 amount) {
-        if (userCanClaimUnlockAssetAmount[asset][msg.sender] == 0) {
+    function claimUnLockAsset(
+        TreasuryAssetType assetType,
+        address asset
+    ) external returns (uint256 amount) {
+        if (userCanClaimUnlockAssetAmount[assetType][asset][msg.sender] == 0) {
             return amount;
         }
 
-        amount = userCanClaimUnlockAssetAmount[asset][msg.sender];
-        userCanClaimUnlockAssetAmount[asset][msg.sender] = 0;
+        amount = userCanClaimUnlockAssetAmount[assetType][asset][msg.sender];
+        userCanClaimUnlockAssetAmount[assetType][asset][msg.sender] = 0;
 
         IVault(vaultAddress).withdraw(msg.sender, asset, amount);
 
-        usedUnlockAsset[asset] -= amount;
+        usedUnlockAsset[assetType][asset] -= amount;
     }
 
     function claimReleasedAsset(
+        TreasuryAssetType assetType,
         uint64 index
     ) external returns (address asset, uint256 amount) {
-        if (lockConfigMap[index].index != index) {
+        if (lockConfigMap[assetType][index].index != index) {
             revert InvalidLockConfig();
         }
 
-        OnChainLockConfig memory config = lockConfigMap[index];
+        OnChainLockConfig memory config = lockConfigMap[assetType][index];
         asset = config.asset;
         amount = 0;
 
-        if (userCanClaimAssetAmount[index][msg.sender] == 0) {
+        if (userCanClaimAssetAmount[assetType][index][msg.sender] == 0) {
             return (asset, amount);
         }
-        uint256 canClaimAssetAmount = userCanClaimAssetAmount[index][
+        uint256 canClaimAssetAmount = userCanClaimAssetAmount[assetType][index][
             msg.sender
         ];
 
-        if (userClaimedAssetAmount[index][msg.sender] >= canClaimAssetAmount) {
+        if (
+            userClaimedAssetAmount[assetType][index][msg.sender] >=
+            canClaimAssetAmount
+        ) {
             return (asset, amount);
         }
 
         amount =
             canClaimAssetAmount -
-            userClaimedAssetAmount[index][msg.sender];
+            userClaimedAssetAmount[assetType][index][msg.sender];
 
-        userClaimedAssetAmount[index][msg.sender] += amount;
+        userClaimedAssetAmount[assetType][index][msg.sender] += amount;
         IVault(vaultAddress).withdraw(msg.sender, asset, amount);
     }
 
     function refreshCanReleaseAssetAmount(
+        TreasuryAssetType assetType,
         uint64[] calldata configIndexList
     ) external {
-        _refreshCanReleaseAssetAmount(configIndexList);
+        _refreshCanReleaseAssetAmount(assetType, configIndexList);
     }
 
     function reBalanceToUserManager(
@@ -181,47 +206,59 @@ contract TreasuryManager is
     }
 
     function getAvailableAmount(
+        TreasuryAssetType assetType,
         uint64 index,
         address walletAddress
     ) external view returns (uint256 amount, address asset, uint8 decimal) {
-        OnChainLockConfig memory info = lockConfigMap[index];
+        OnChainLockConfig memory info = lockConfigMap[assetType][index];
         amount =
-            userCanClaimAssetAmount[index][walletAddress] -
-            userClaimedAssetAmount[index][walletAddress];
+            userCanClaimAssetAmount[assetType][index][walletAddress] -
+            userClaimedAssetAmount[assetType][index][walletAddress];
         return (amount, info.asset, IERC20Decimals(info.asset).decimals());
     }
 
     function getAvailableUnlockAmount(
+        TreasuryAssetType assetType,
         address asset,
         address walletAddress
     ) external view returns (uint256 amount, address asset_, uint8 decimal) {
         return (
-            userCanClaimUnlockAssetAmount[asset][walletAddress],
+            userCanClaimUnlockAssetAmount[assetType][asset][walletAddress],
             asset,
             IERC20Decimals(asset).decimals()
         );
     }
 
     function _refreshCanReleaseAssetAmount(
+        TreasuryAssetType assetType,
         uint64[] memory configIndexList
     ) private {
         for (uint256 i = 0; i < configIndexList.length; i++) {
             uint64 configIndex = configIndexList[i];
 
-            OnChainLockConfig memory config = lockConfigMap[configIndex];
+            OnChainLockConfig memory config = lockConfigMap[assetType][
+                configIndex
+            ];
 
             if (config.index != configIndex) {
                 revert InvalidLockConfig();
             }
 
-            uint256 beforeCanRelease = canReleaseAssetAmount[configIndex];
-            canReleaseAssetAmount[configIndex] = getCanReleaseAmount(config);
+            uint256 beforeCanRelease = canReleaseAssetAmount[assetType][
+                configIndex
+            ];
+            canReleaseAssetAmount[assetType][configIndex] = getCanReleaseAmount(
+                config
+            );
 
             // already release asset can't lock by same config again
-            if (beforeCanRelease > canReleaseAssetAmount[configIndex]) {
-                totalLockedAsset[config.asset] -= (canReleaseAssetAmount[
-                    configIndex
-                ] - beforeCanRelease);
+            if (
+                beforeCanRelease > canReleaseAssetAmount[assetType][configIndex]
+            ) {
+                totalLockedAsset[assetType][
+                    config.asset
+                ] -= (canReleaseAssetAmount[assetType][configIndex] -
+                    beforeCanRelease);
             }
         }
     }
@@ -279,6 +316,7 @@ contract TreasuryManager is
             (AddTreasuryLockConfigInfo)
         );
         _addLockConfig(
+            info.assetType,
             info.index,
             info.lockAsset,
             info.canUpdateConfig,
@@ -289,6 +327,7 @@ contract TreasuryManager is
     }
 
     function _addLockConfig(
+        TreasuryAssetType assetType,
         uint64 index,
         address lockAsset,
         bool canUpdateConfig,
@@ -308,11 +347,11 @@ contract TreasuryManager is
         if (lockAssetAmount == 0) {
             revert InvalidLockAmount();
         }
-        if (lockConfigMap[index].lockAssetAmount != 0) {
+        if (lockConfigMap[assetType][index].lockAssetAmount != 0) {
             revert DuplicateLockConfigIndex(index);
         }
 
-        lockConfigMap[index] = OnChainLockConfig(
+        lockConfigMap[assetType][index] = OnChainLockConfig(
             index,
             lockAsset,
             canUpdateConfig,
@@ -334,26 +373,26 @@ contract TreasuryManager is
         }
 
         if (
-            IERC20(lockAsset).balanceOf(vaultAddress) >=
+            totalAsset[assetType][lockAsset] <
             lockAssetAmount +
-                totalLockedAsset[lockAsset] -
-                totalReleasedAsset[lockAsset] -
-                usedUnlockAsset[lockAsset]
+                totalLockedAsset[assetType][lockAsset] -
+                totalReleasedAsset[assetType][lockAsset] -
+                usedUnlockAsset[assetType][lockAsset]
         ) {
             revert InsufficientFreeAssetAmount(
                 lockAsset,
-                IERC20(lockAsset).balanceOf(vaultAddress),
+                totalAsset[assetType][lockAsset],
                 lockAssetAmount,
-                totalLockedAsset[lockAsset],
-                totalReleasedAsset[lockAsset]
+                totalLockedAsset[assetType][lockAsset],
+                totalReleasedAsset[assetType][lockAsset]
             );
         }
 
         uint64[] memory targetConfigList = new uint64[](1);
         targetConfigList[0] = index;
-        _refreshCanReleaseAssetAmount(targetConfigList);
+        _refreshCanReleaseAssetAmount(assetType, targetConfigList);
 
-        totalLockedAsset[lockAsset] += lockAssetAmount;
+        totalLockedAsset[assetType][lockAsset] += lockAssetAmount;
 
         emit NewLockConfigAdded(index, lockAsset, lockAssetAmount);
     }
@@ -364,6 +403,7 @@ contract TreasuryManager is
             (ProcessReleasedAssetInfo)
         );
         _processReleasedAsset(
+            info.assetType,
             info.needAirDrop,
             info.index,
             info.recipients,
@@ -377,6 +417,7 @@ contract TreasuryManager is
             (ProcessUnLockAssetInfo)
         );
         _processUnLockAsset(
+            info.assetType,
             info.needAirDrop,
             info.token,
             info.recipients,
@@ -390,6 +431,7 @@ contract TreasuryManager is
             (TransferReleasedAssetToOtherModuleInfo)
         );
         _transferUnLockAssetToOtherModule(
+            info.assetType,
             info.token,
             info.amountX18,
             info.moduleIndex
@@ -402,6 +444,7 @@ contract TreasuryManager is
             (TransferUnLockAssetToOtherModuleInfo)
         );
         _transferReleasedAssetToOtherModule(
+            info.assetType,
             info.index,
             info.amountX18,
             info.moduleIndex
@@ -409,25 +452,26 @@ contract TreasuryManager is
     }
 
     function _processReleasedAsset(
+        TreasuryAssetType assetType,
         bool needAirDrop,
         uint64 index,
         address[] memory recipients,
         uint256[] memory amountX18List
     ) private {
-        if (lockConfigMap[index].index != index) {
+        if (lockConfigMap[assetType][index].index != index) {
             revert InvalidLockConfig();
         }
 
         if (recipients.length != amountX18List.length) {
             revert InvalidDataLength();
         }
-        OnChainLockConfig memory config = lockConfigMap[index];
+        OnChainLockConfig memory config = lockConfigMap[assetType][index];
 
         uint256 canReleaseAmount = getCanReleaseAmount(config);
-        if (canReleaseAmount < releasedAssetAmount[index]) {
+        if (canReleaseAmount < releasedAssetAmount[assetType][index]) {
             revert InsufficientReleasedAsset(
                 canReleaseAmount,
-                releasedAssetAmount[index]
+                releasedAssetAmount[assetType][index]
             );
         }
 
@@ -442,11 +486,11 @@ contract TreasuryManager is
 
         if (
             totalRealeaseAmount >
-            (canReleaseAmount - releasedAssetAmount[index])
+            (canReleaseAmount - releasedAssetAmount[assetType][index])
         ) {
             revert InsufficientReleasedAsset(
                 canReleaseAmount,
-                releasedAssetAmount[index]
+                releasedAssetAmount[assetType][index]
             );
         }
 
@@ -463,15 +507,18 @@ contract TreasuryManager is
                     amount
                 );
             } else {
-                userCanClaimAssetAmount[index][recipients[i]] += amount;
+                userCanClaimAssetAmount[assetType][index][
+                    recipients[i]
+                ] += amount;
             }
         }
 
-        releasedAssetAmount[index] += totalRealeaseAmount;
-        totalReleasedAsset[config.asset] += totalRealeaseAmount;
+        releasedAssetAmount[assetType][index] += totalRealeaseAmount;
+        totalReleasedAsset[assetType][config.asset] += totalRealeaseAmount;
     }
 
     function _processUnLockAsset(
+        TreasuryAssetType assetType,
         bool needAirDrop,
         address token,
         address[] memory recipients,
@@ -481,9 +528,9 @@ contract TreasuryManager is
             revert InvalidDataLength();
         }
 
-        uint256 canUseAmount = IERC20(token).balanceOf(vaultAddress);
-        canUseAmount -= totalLockedAsset[token];
-        canUseAmount -= usedUnlockAsset[token];
+        uint256 canUseAmount = totalAsset[assetType][token];
+        canUseAmount -= totalLockedAsset[assetType][token];
+        canUseAmount -= usedUnlockAsset[assetType][token];
 
         uint256 useAmountX18 = 0;
         for (uint256 i = 0; i < recipients.length; i++) {
@@ -507,20 +554,23 @@ contract TreasuryManager is
             if (needAirDrop) {
                 IVault(vaultAddress).withdraw(recipients[i], token, amount);
             } else {
-                userCanClaimUnlockAssetAmount[token][recipients[i]] += amount;
-                usedUnlockAsset[token] += amount;
+                userCanClaimUnlockAssetAmount[assetType][token][
+                    recipients[i]
+                ] += amount;
+                usedUnlockAsset[assetType][token] += amount;
             }
         }
     }
 
     function _transferUnLockAssetToOtherModule(
+        TreasuryAssetType assetType,
         address token,
         uint256 amountX18,
         uint8 moduleIndex
     ) private {
-        uint256 canUseAmount = IERC20(token).balanceOf(vaultAddress);
-        canUseAmount -= totalLockedAsset[token];
-        canUseAmount -= usedUnlockAsset[token];
+        uint256 canUseAmount = totalAsset[assetType][token];
+        canUseAmount -= totalLockedAsset[assetType][token];
+        canUseAmount -= usedUnlockAsset[assetType][token];
 
         uint256 amount = X18Helper.fromX18ToNormalDecimal(amountX18, token);
 
@@ -540,28 +590,31 @@ contract TreasuryManager is
     }
 
     function _transferReleasedAssetToOtherModule(
+        TreasuryAssetType assetType,
         uint64 index,
         uint256 amountX18,
         uint8 moduleIndex
     ) private {
-        OnChainLockConfig memory config = lockConfigMap[index];
+        OnChainLockConfig memory config = lockConfigMap[assetType][index];
         address token = config.asset;
 
         uint256 canReleaseAmount = getCanReleaseAmount(config);
 
-        if (canReleaseAmount < releasedAssetAmount[index]) {
+        if (canReleaseAmount < releasedAssetAmount[assetType][index]) {
             revert InsufficientReleasedAsset(
                 canReleaseAmount,
-                releasedAssetAmount[index]
+                releasedAssetAmount[assetType][index]
             );
         }
 
         uint256 amount = X18Helper.fromX18ToNormalDecimal(amountX18, token);
 
-        if (amount > (canReleaseAmount - releasedAssetAmount[index])) {
+        if (
+            amount > (canReleaseAmount - releasedAssetAmount[assetType][index])
+        ) {
             revert InsufficientReleasedAsset(
                 canReleaseAmount,
-                releasedAssetAmount[index]
+                releasedAssetAmount[assetType][index]
             );
         }
 

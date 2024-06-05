@@ -40,7 +40,7 @@ contract Exchange is
     bytes32 public secPreHash; // pre pre commit hash
     mapping(bytes32 => bool) public processedPreHash;
 
-    uint64 public action2PreRequestId; // 
+    uint64 public action2PreRequestId; //
     mapping(uint64 => bool) public processedAction2RequestId;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -307,7 +307,7 @@ contract Exchange is
     }
 
     modifier onlyMulSign(bytes32 data, bytes[] calldata signList) {
-        if(signList.length != signerList.length){
+        if (signList.length != signerList.length) {
             revert NeedMulSign();
         }
 

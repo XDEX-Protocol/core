@@ -20,6 +20,12 @@ interface ITreasuryManager is
         uint256 lockAssetAmount
     );
 
+    function deposit(
+        TreasuryAssetType assetType,
+        address asset,
+        uint256 amount
+    ) external;
+
     function batchProcess(bytes[] calldata waitProcessData) external;
 
     function batchProcessAction2(bytes[] calldata waitProcessData) external;
@@ -32,13 +38,23 @@ interface ITreasuryManager is
 
     function setVaultAddress(address vault) external;
 
-    function refreshCanReleaseAssetAmount(uint64[] calldata index) external;
+    function refreshCanReleaseAssetAmount(
+        TreasuryAssetType assetType,
+        uint64[] calldata index
+    ) external;
 
     function claimReleasedAsset(
+        TreasuryAssetType assetType,
         uint64 index
     ) external returns (address asset, uint256 amount);
 
+    function claimUnLockAsset(
+        TreasuryAssetType assetType,
+        address asset
+    ) external returns (uint256 amount);
+
     function getAvailableAmount(
+        TreasuryAssetType assetType,
         uint64 index,
         address walletAddr
     ) external returns (uint256 amount, address asset, uint8 decimal);

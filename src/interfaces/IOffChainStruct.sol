@@ -41,6 +41,23 @@ interface IOffChainStruct is IBaseStruct {
         short
     }
 
+    enum ProfitSettleType {
+        AllocPnlToLP, //
+        TradeFeeToPlatform, //
+        TradeFeeToLP, //
+        TradeFeeToTreasury //
+    }
+
+    enum TreasuryAssetType {
+        FoundingTeam,
+        EarlyInvestors,
+        InitialStage,
+        ContinuousMotivation,
+        Ecosystem,
+        Community,
+        Advisor
+    }
+
     // deposit confirm
     struct DepositConfirmInfo {
         uint64 orderId;
@@ -152,13 +169,6 @@ interface IOffChainStruct is IBaseStruct {
         uint64 aid;
         uint64 poolIndex;
         int256 fee;
-    }
-
-    enum ProfitSettleType {
-        AllocPnlToLP, // 
-        TradeFeeToPlatform, //
-        TradeFeeToLP, // 
-        TradeFeeToTreasury // 
     }
 
     struct TradeProfitSettleInfo {
@@ -293,6 +303,7 @@ interface IOffChainStruct is IBaseStruct {
     }
 
     struct AddTreasuryLockConfigInfo {
+        TreasuryAssetType assetType;
         uint64 index;
         address lockAsset;
         bool canUpdateConfig;
@@ -302,6 +313,7 @@ interface IOffChainStruct is IBaseStruct {
     }
 
     struct ProcessReleasedAssetInfo {
+        TreasuryAssetType assetType;
         bool needAirDrop;
         uint64 index;
         address[] recipients;
@@ -309,6 +321,7 @@ interface IOffChainStruct is IBaseStruct {
     }
 
     struct ProcessUnLockAssetInfo {
+        TreasuryAssetType assetType;
         bool needAirDrop;
         address token;
         address[] recipients;
@@ -316,12 +329,14 @@ interface IOffChainStruct is IBaseStruct {
     }
 
     struct TransferReleasedAssetToOtherModuleInfo {
+        TreasuryAssetType assetType;
         address token;
         uint256 amountX18;
         uint8 moduleIndex;
     }
 
     struct TransferUnLockAssetToOtherModuleInfo {
+        TreasuryAssetType assetType;
         uint64 index;
         uint256 amountX18;
         uint8 moduleIndex;
