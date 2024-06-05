@@ -22,7 +22,6 @@ import "./interfaces/IVault.sol";
 import "./common/Constants.sol";
 import "./common/Errors.sol";
 import "./utils/EmergencyStop.sol";
-import "./utils/EmergencyWithdraw.sol";
 import "./utils/RefundDeposit.sol";
 import "./Pool.sol";
 import "./libraries/X18Helper.sol";
@@ -31,7 +30,6 @@ contract LPManager is
     ILPManager,
     IOnChainStruct,
     EmergencyStop,
-    EmergencyWithdraw,
     RefundDeposit,
     Initializable,
     OwnableUpgradeable,
@@ -128,7 +126,9 @@ contract LPManager is
             poolAddress[poolIndex]
         );
 
-        require(assetAmount > 0, "amount is too small");
+        if (assetAmount == 0) {
+            revert AmountTooSmall();
+        }
 
         IERC20(asset).safeTransferFrom(from, vaultAddress, assetAmount);
 
@@ -267,11 +267,13 @@ contract LPManager is
             info.sharePriceDecimal
         );
 
-        require(sharePriceInReal > 0, "sharePrice can't less than zero");
-        require(
-            info.reciprocalSharePriceX18 > 0,
-            "sharePrice can't less than zero"
-        );
+        if (sharePriceInReal == 0) {
+            revert SharePriceCannotLessThanZereo();
+        }
+
+        if (info.reciprocalSharePriceX18 == 0) {
+            revert ReciprocalSharePriceCannotLessThanZereo();
+        }
 
         poolAddress[info.poolIndex] = _poolAddress;
         poolSharePrice[info.poolIndex] = sharePriceInReal;
@@ -345,17 +347,13 @@ contract LPManager is
                 _sharePriceDecimal
             );
 
-            // uint256 reciprocalSharePriceInReal = X18Helper
-            //     .fromX18ToNormalDecimal(
-            //         reciprocalSharePriceX18,
-            //         poolAddress[poolIndex]
-            //     );
+            if (sharePriceInReal == 0) {
+                revert SharePriceCannotLessThanZereo();
+            }
 
-            require(sharePriceInReal > 0, "share price must larger than zero");
-            require(
-                reciprocalSharePriceX18 > 0,
-                "reciprocal share price must larger than zero"
-            );
+            if (reciprocalSharePriceX18 == 0) {
+                revert ReciprocalSharePriceCannotLessThanZereo();
+            }
 
             poolSharePrice[poolIndex] = sharePriceInReal;
             reciprocalPoolSharePrices[poolIndex] = reciprocalSharePriceX18;
@@ -391,17 +389,14 @@ contract LPManager is
                 info.sharePriceX18,
                 _sharePriceDecimal
             );
-            // uint256 reciprocalSharePriceInReal = X18Helper
-            //     .fromX18ToNormalDecimal(
-            //         info.reciprocalSharePriceX18,
-            //         poolAddress[info.poolIndex]
-            //     );
 
-            require(sharePriceInReal > 0, "share price must larger than zero");
-            require(
-                info.reciprocalSharePriceX18 > 0,
-                "reciprocal share price must larger than zero"
-            );
+            if (sharePriceInReal == 0) {
+                revert SharePriceCannotLessThanZereo();
+            }
+
+            if (info.reciprocalSharePriceX18 == 0) {
+                revert ReciprocalSharePriceCannotLessThanZereo();
+            }
 
             uint256 reciprocalPoolSharePriceInReal = X18Helper
                 .fromX18ToNormalDecimal(
@@ -494,7 +489,9 @@ contract LPManager is
     }
 
     modifier onlyMulSign(bytes32 data, bytes[] calldata signList) {
-        require(signList.length == signerList.length);
+        if (signList.length != signerList.length) {
+            revert NeedMulSign();
+        }
 
         uint8 cnt = 0;
         for (uint256 i = 0; i < signList.length; i++) {

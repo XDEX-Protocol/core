@@ -155,10 +155,10 @@ interface IOffChainStruct is IBaseStruct {
     }
 
     enum ProfitSettleType {
-        AllocPnlToLP, // 分配交易盈利
+        AllocPnlToLP, // 
         TradeFeeToPlatform, //
-        TradeFeeToLP, // 流动性池 index
-        TradeFeeToTreasury // 流动性池 index
+        TradeFeeToLP, // 
+        TradeFeeToTreasury // 
     }
 
     struct TradeProfitSettleInfo {

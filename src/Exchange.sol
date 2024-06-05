@@ -36,11 +36,11 @@ contract Exchange is
     mapping(uint64 => mapping(uint64 => int256)) public holdPositions;
 
     // other check
-    bytes32 public preHash; // 上次提交hash
-    bytes32 public secPreHash; // 上上次提交hash
+    bytes32 public preHash; // last commit hash
+    bytes32 public secPreHash; // pre pre commit hash
     mapping(bytes32 => bool) public processedPreHash;
 
-    uint64 public action2PreRequestId; // action2 上次处理的id
+    uint64 public action2PreRequestId; // 
     mapping(uint64 => bool) public processedAction2RequestId;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -307,7 +307,9 @@ contract Exchange is
     }
 
     modifier onlyMulSign(bytes32 data, bytes[] calldata signList) {
-        require(signList.length == signerList.length);
+        if(signList.length != signerList.length){
+            revert NeedMulSign();
+        }
 
         uint8 cnt = 0;
         for (uint256 i = 0; i < signList.length; i++) {

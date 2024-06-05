@@ -21,14 +21,12 @@ import "./interfaces/IVault.sol";
 import "./common/Constants.sol";
 import "./common/Errors.sol";
 import "./utils/EmergencyStop.sol";
-import "./utils/EmergencyWithdraw.sol";
 import "./utils/RefundDeposit.sol";
 import "./libraries/X18Helper.sol";
 
 contract UserManager is
     IUserManager,
     EmergencyStop,
-    EmergencyWithdraw,
     RefundDeposit,
     Initializable,
     OwnableUpgradeable,
@@ -651,7 +649,9 @@ contract UserManager is
     }
 
     modifier onlyMulSign(bytes32 data, bytes[] calldata signList) {
-        require(signList.length == signerList.length);
+        if (signList.length != signerList.length) {
+            revert NeedMulSign();
+        }
 
         uint8 cnt = 0;
         for (uint256 i = 0; i < signList.length; i++) {

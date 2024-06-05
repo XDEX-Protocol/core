@@ -98,6 +98,10 @@ error RedeemRequestAlreadyProcessed(uint64 requestId);
 
 error PoolIsFull();
 
+error SharePriceCannotLessThanZereo();
+
+error ReciprocalSharePriceCannotLessThanZereo();
+
 // treasury manager errors
 error InvalidLockAmount();
 
@@ -113,6 +117,11 @@ error InsufficientFreeAssetAmount(
     uint256 want,
     uint256 locked,
     uint256 released
+);
+
+error InsufficientReleasedAsset(
+    uint256 canReleaseAmount,
+    uint256 releasedAmount
 );
 
 error InsufficientUnlockAsset(address token, uint256 want, uint256 has);

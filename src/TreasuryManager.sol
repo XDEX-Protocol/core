@@ -22,14 +22,12 @@ import "./interfaces/IVault.sol";
 import "./common/Constants.sol";
 import "./common/Errors.sol";
 import "./utils/EmergencyStop.sol";
-import "./utils/EmergencyWithdraw.sol";
 import "./utils/RefundDeposit.sol";
 import "./libraries/X18Helper.sol";
 
 contract TreasuryManager is
     ITreasuryManager,
     EmergencyStop,
-    EmergencyWithdraw,
     RefundDeposit,
     Initializable,
     OwnableUpgradeable,
@@ -49,18 +47,18 @@ contract TreasuryManager is
     address[] public signerList;
     uint public threshold;
 
-    mapping(uint64 => OnChainLockConfig) public lockConfigMap; // Map<configIndex, config> 锁仓配置
-    mapping(address => uint256) public totalLockedAsset; // Map<asset, amount> 总锁仓金额
-    mapping(address => uint256) public totalReleasedAsset; // Map<asset, amount> 总释放量
-    mapping(address => uint256) public usedUnlockAsset; // Map<asset, amount> 已使用未锁仓数量
-    mapping(uint64 => uint256) public canReleaseAssetAmount; // Map<configIndex, amount> 可释放金额
-    mapping(uint64 => uint256) public releasedAssetAmount; // Map<configIndex, amount> 已释放金额  链下上传分配策略
+    mapping(uint64 => OnChainLockConfig) public lockConfigMap; // Map<configIndex, config> lock config
+    mapping(address => uint256) public totalLockedAsset; // Map<asset, amount>
+    mapping(address => uint256) public totalReleasedAsset; // Map<asset, amount>
+    mapping(address => uint256) public usedUnlockAsset; // Map<asset, amount>
+    mapping(uint64 => uint256) public canReleaseAssetAmount; // Map<configIndex, amount>
+    mapping(uint64 => uint256) public releasedAssetAmount; // Map<configIndex, amount>
     mapping(uint64 => mapping(address => uint256))
-        public userCanClaimAssetAmount; // Map<configIndex, Map<walletAddress, amount>> 配置已发放给用户的金额
+        public userCanClaimAssetAmount; // Map<configIndex, Map<walletAddress, amount>>
     mapping(uint64 => mapping(address => uint256))
-        public userClaimedAssetAmount; // Map<configIndex, Map<walletAddress, amount>> 配置已发放给用户, 用户已经领取的金额
+        public userClaimedAssetAmount; // Map<configIndex, Map<walletAddress, amount>>
     mapping(address => mapping(address => uint256))
-        public userCanClaimUnlockAssetAmount; // Map<coinAddress, Map<walletAddress, amount>> 未锁定资产发放给用户的金额
+        public userCanClaimUnlockAssetAmount; // Map<coinAddress, Map<walletAddress, amount>>
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -212,7 +210,9 @@ contract TreasuryManager is
 
             OnChainLockConfig memory config = lockConfigMap[configIndex];
 
-            require(config.index == configIndex, "config not exist");
+            if (config.index != configIndex) {
+                revert InvalidLockConfig();
+            }
 
             uint256 beforeCanRelease = canReleaseAssetAmount[configIndex];
             canReleaseAssetAmount[configIndex] = getCanReleaseAmount(config);
@@ -296,7 +296,9 @@ contract TreasuryManager is
         uint256 lockAssetAmountX18,
         bytes memory configDetail
     ) private {
-        require(vaultAddress != address(0x0), "valut address not set");
+        if (vaultAddress == address(0x0)) {
+            revert VaultNotInit();
+        }
 
         uint256 lockAssetAmount = X18Helper.fromX18ToNormalDecimal(
             lockAssetAmountX18,
@@ -412,18 +414,22 @@ contract TreasuryManager is
         address[] memory recipients,
         uint256[] memory amountX18List
     ) private {
-        require(lockConfigMap[index].index == index, "config not exist");
-        require(
-            recipients.length == amountX18List.length,
-            "list length not equal"
-        );
+        if (lockConfigMap[index].index != index) {
+            revert InvalidLockConfig();
+        }
+
+        if (recipients.length != amountX18List.length) {
+            revert InvalidDataLength();
+        }
         OnChainLockConfig memory config = lockConfigMap[index];
 
         uint256 canReleaseAmount = getCanReleaseAmount(config);
-        require(
-            canReleaseAmount >= releasedAssetAmount[index],
-            "can't release this lock, can release amount less than released amount"
-        );
+        if (canReleaseAmount < releasedAssetAmount[index]) {
+            revert InsufficientReleasedAsset(
+                canReleaseAmount,
+                releasedAssetAmount[index]
+            );
+        }
 
         uint256 totalRealeaseAmountX18 = 0;
         for (uint256 i = 0; i < recipients.length; i++) {
@@ -434,11 +440,15 @@ contract TreasuryManager is
             config.asset
         );
 
-        require(
-            totalRealeaseAmount <=
-                (canReleaseAmount - releasedAssetAmount[index]),
-            "can't release, can release amount less than want release amount"
-        );
+        if (
+            totalRealeaseAmount >
+            (canReleaseAmount - releasedAssetAmount[index])
+        ) {
+            revert InsufficientReleasedAsset(
+                canReleaseAmount,
+                releasedAssetAmount[index]
+            );
+        }
 
         for (uint256 i = 0; i < recipients.length; i++) {
             uint256 amount = X18Helper.fromX18ToNormalDecimal(
@@ -538,20 +548,26 @@ contract TreasuryManager is
         address token = config.asset;
 
         uint256 canReleaseAmount = getCanReleaseAmount(config);
-        require(
-            canReleaseAmount >= releasedAssetAmount[index],
-            "can't release this lock, can release amount less than released amount"
-        );
+
+        if (canReleaseAmount < releasedAssetAmount[index]) {
+            revert InsufficientReleasedAsset(
+                canReleaseAmount,
+                releasedAssetAmount[index]
+            );
+        }
 
         uint256 amount = X18Helper.fromX18ToNormalDecimal(amountX18, token);
-        require(
-            amount <= (canReleaseAmount - releasedAssetAmount[index]),
-            "can't release, can release amount less than want release amount"
-        );
-        require(
-            otherModuleAddress[moduleIndex] != address(0x0),
-            "module not init"
-        );
+
+        if (amount > (canReleaseAmount - releasedAssetAmount[index])) {
+            revert InsufficientReleasedAsset(
+                canReleaseAmount,
+                releasedAssetAmount[index]
+            );
+        }
+
+        if (otherModuleAddress[moduleIndex] == address(0x0)) {
+            revert ModuleNotInit(moduleIndex);
+        }
 
         IVault(vaultAddress).withdraw(
             otherModuleAddress[moduleIndex],
@@ -701,7 +717,9 @@ contract TreasuryManager is
     }
 
     modifier onlyMulSign(bytes32 data, bytes[] calldata signList) {
-        require(signList.length == signerList.length);
+        if (signList.length != signerList.length) {
+            revert NeedMulSign();
+        }
 
         uint8 cnt = 0;
         for (uint256 i = 0; i < signList.length; i++) {
