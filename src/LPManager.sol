@@ -71,6 +71,11 @@ contract LPManager is
         uint8 threshold_,
         address exchangeAddress
     ) public initializer {
+        require(initialOwner != address(0x0), "invalid initial owner");
+        require(signerList_.length > 0, "invalid signer list");
+        require(threshold_ <= signerList_.length, "invalid threshold");
+        require(exchangeAddress != address(0x0), "invalid exchange address");
+
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
 
@@ -495,6 +500,10 @@ contract LPManager is
 
         uint8 cnt = 0;
         for (uint256 i = 0; i < signList.length; i++) {
+            if (signList[i].length == 0) {
+                continue;
+            }
+
             if (_verify(data, signList[i], signerList[i])) {
                 cnt++;
             }

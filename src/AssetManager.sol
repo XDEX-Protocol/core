@@ -50,6 +50,13 @@ contract AssetManager is
         address asset_,
         address treasuryAddress_
     ) public initializer {
+        require(initialOwner != address(0x0), "invalid initial owner");
+        require(manager_ != address(0x0), "invalid manager");
+        require(signerList_.length > 0, "invalid signer list");
+        require(threshold_ <= signerList_.length, "invalid threshold");
+        require(asset_ != address(0x0), "invalid asset address");
+        require(treasuryAddress_ != address(0x0), "invalid treasury address");
+
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
 
@@ -75,7 +82,7 @@ contract AssetManager is
         uint ContinuousMotivationLockTimeInDays,
         uint CommunityLockTimeInDays,
         uint[] calldata dayCntOfMonth_
-    ) external returns (bool success) {
+    ) external onlyManager returns (bool success) {
         require(dayCntOfMonth_.length == 24, "must give 24 month day count");
 
         uint8 decimal = IERC20Decimals(asset).decimals();
@@ -177,6 +184,10 @@ contract AssetManager is
         uint8 cnt = 0;
         bytes32 data = keccak256(abi.encode(targetAddress));
         for (uint256 i = 0; i < signList.length; i++) {
+            if (signList[i].length == 0) {
+                continue;
+            }
+
             if (_verify(data, signList[i], signerList[i])) {
                 cnt++;
             }
@@ -237,6 +248,10 @@ contract AssetManager is
 
         uint8 cnt = 0;
         for (uint256 i = 0; i < signList.length; i++) {
+            if (signList[i].length == 0) {
+                continue;
+            }
+
             if (_verify(data, signList[i], signerList[i])) {
                 cnt++;
             }

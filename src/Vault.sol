@@ -26,6 +26,10 @@ contract Vault is IVault {
         address[] memory _mulSigners,
         uint _threshold
     ) {
+        require(_manager != address(0x0), "invalid manager address");
+        require(_mulSigners.length > 0, "invalid signer list");
+        require(_threshold <= _mulSigners.length, "invalid threshold");
+
         name = _name;
         manager = _manager;
         mulSigners = new address[](_mulSigners.length);

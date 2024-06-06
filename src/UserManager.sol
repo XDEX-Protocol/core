@@ -88,6 +88,19 @@ contract UserManager is
         address withdrawFeeDesc_,
         address platformIncomeDesc_
     ) public initializer {
+        require(initialOwner != address(0x0), "invalid initial owner");
+        require(signerList_.length > 0, "invalid mul signer");
+        require(threshold <= signerList_.length, "invalid mul signer");
+        require(exchangeAddress != address(0x0), "invalid exchange address");
+        require(withdrawFeeAID_ != 0, "invalid withdraw fee aid");
+        require(platformIncomeAID_ != 0, "invalid platform income aid");
+        require(platformSigner_ != address(0x0), "invalid platform signer");
+        require(withdrawFeeDesc_ != address(0x0), "invalid withdraw fee desc");
+        require(
+            platformIncomeDesc_ != address(0x0),
+            "invalid platform income desc"
+        );
+
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
 
@@ -655,6 +668,10 @@ contract UserManager is
 
         uint8 cnt = 0;
         for (uint256 i = 0; i < signList.length; i++) {
+            if (signList[i].length == 0) {
+                continue;
+            }
+
             if (_verify(data, signList[i], signerList[i])) {
                 cnt++;
             }
