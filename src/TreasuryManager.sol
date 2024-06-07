@@ -145,8 +145,6 @@ contract TreasuryManager is
 
         IVault(vaultAddress).withdraw(msg.sender, asset, amount);
 
-        usedUnlockAsset[assetType][asset] -= amount;
-
         emit UnlockAssetClaimed(assetType, asset, msg.sender, amount);
     }
 
@@ -560,6 +558,7 @@ contract TreasuryManager is
 
             if (needAirDrop) {
                 IVault(vaultAddress).withdraw(recipients[i], token, amount);
+                usedUnlockAsset[assetType][token] += amount;
             } else {
                 userCanClaimUnlockAssetAmount[assetType][token][
                     recipients[i]
