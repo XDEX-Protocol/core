@@ -161,12 +161,14 @@ contract Exchange is
             ILPManager(otherModuleAddress[MODULE_INDEX_LP]).batchProcessAction2(
                 getTargetTxs(transactions, toLPCount, toLPData)
             );
-        } else if (toUserCount > 0) {
+        }
+        if (toUserCount > 0) {
             IUserManager(otherModuleAddress[MODULE_INDEX_USER])
                 .batchProcessAction2(
                     getTargetTxs(transactions, toUserCount, toUserData)
                 );
-        } else if (toTreasuryCount > 0) {
+        }
+        if (toTreasuryCount > 0) {
             ITreasuryManager(otherModuleAddress[MODULE_INDEX_TREASURY])
                 .batchProcessAction2(
                     getTargetTxs(transactions, toTreasuryCount, toTreasuryData)
