@@ -146,6 +146,8 @@ contract TreasuryManager is
         IVault(vaultAddress).withdraw(msg.sender, asset, amount);
 
         usedUnlockAsset[assetType][asset] -= amount;
+
+        emit UnlockAssetClaimed(assetType, asset, msg.sender, amount);
     }
 
     function claimReleasedAsset(
@@ -563,6 +565,14 @@ contract TreasuryManager is
                     recipients[i]
                 ] += amount;
                 usedUnlockAsset[assetType][token] += amount;
+
+                emit CanClaimUnlockAssetAdded(
+                    assetType,
+                    token,
+                    recipients[i],
+                    amount,
+                    needAirDrop
+                );
             }
         }
     }

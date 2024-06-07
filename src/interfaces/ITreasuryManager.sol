@@ -20,6 +20,21 @@ interface ITreasuryManager is
         uint256 lockAssetAmount
     );
 
+    event CanClaimUnlockAssetAdded(
+        TreasuryAssetType assetType,
+        address token,
+        address receipt,
+        uint256 amount,
+        bool airDroped
+    );
+
+    event UnlockAssetClaimed(
+        TreasuryAssetType assetType,
+        address token,
+        address receipt,
+        uint256 amount
+    );
+
     function deposit(
         TreasuryAssetType assetType,
         address asset,
