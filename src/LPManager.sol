@@ -78,6 +78,7 @@ contract LPManager is
 
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
+        SetupEmergencyStop(exchangeAddress, signerList_, threshold_);
 
         signerList = signerList_;
         threshold = threshold_;
@@ -153,7 +154,7 @@ contract LPManager is
         uint64 poolIndex,
         address from,
         uint256 share
-    ) external {
+    ) external withdrawIsEnable {
         poolMustExist(poolIndex);
         require(
             block.timestamp - lastBuyTimestamp[from][poolIndex] < 1 days,
@@ -367,7 +368,7 @@ contract LPManager is
         }
     }
 
-    function redeemPoolShare(bytes calldata data) private {
+    function redeemPoolShare(bytes calldata data) private withdrawIsEnable {
         RedeemPoolShareList memory resultList = abi.decode(
             data,
             (RedeemPoolShareList)
@@ -477,6 +478,13 @@ contract LPManager is
         if (otherModuleAddress[moduleIndex] == address(0x0)) {
             otherModuleAddress[moduleIndex] = _newAddress;
         }
+    }
+
+    modifier withdrawIsEnable() {
+        if (!_isWithdrawalAllowed()) {
+            revert WithdrawStopped();
+        }
+        _;
     }
 
     modifier onlyExchange() {

@@ -4,7 +4,4 @@ pragma solidity ^0.8.20;
 interface IEmergencyStop {
     event withdrawStarted();
     event withdrawStoped();
-
-    function startWithdraw() external;
-    function stopWithdraw() external;
 }

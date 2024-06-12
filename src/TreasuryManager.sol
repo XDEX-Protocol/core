@@ -85,6 +85,7 @@ contract TreasuryManager is
 
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
+        SetupEmergencyStop(exchangeAddress, signerList_, threshold_);
 
         signerList = signerList_;
         threshold = threshold_;
@@ -135,7 +136,7 @@ contract TreasuryManager is
     function claimUnLockAsset(
         TreasuryAssetType assetType,
         address asset
-    ) external returns (uint256 amount) {
+    ) external withdrawIsEnable returns (uint256 amount) {
         if (userCanClaimUnlockAssetAmount[assetType][asset][msg.sender] == 0) {
             return amount;
         }
@@ -151,7 +152,7 @@ contract TreasuryManager is
     function claimReleasedAsset(
         TreasuryAssetType assetType,
         uint64 index
-    ) external returns (address asset, uint256 amount) {
+    ) external withdrawIsEnable returns (address asset, uint256 amount) {
         if (lockConfigMap[assetType][index].index != index) {
             revert InvalidLockConfig();
         }
@@ -462,7 +463,7 @@ contract TreasuryManager is
         uint64 index,
         address[] memory recipients,
         uint256[] memory amountX18List
-    ) private {
+    ) private withdrawIsEnable {
         if (lockConfigMap[assetType][index].index != index) {
             revert InvalidLockConfig();
         }
@@ -528,7 +529,7 @@ contract TreasuryManager is
         address token,
         address[] memory recipients,
         uint256[] memory amountX18List
-    ) private {
+    ) private withdrawIsEnable {
         if (recipients.length != amountX18List.length) {
             revert InvalidDataLength();
         }
@@ -581,7 +582,7 @@ contract TreasuryManager is
         address token,
         uint256 amountX18,
         uint8 moduleIndex
-    ) private {
+    ) private withdrawIsEnable {
         uint256 canUseAmount = totalAsset[assetType][token];
         canUseAmount -= totalLockedAsset[assetType][token];
         canUseAmount -= usedUnlockAsset[assetType][token];
@@ -608,7 +609,7 @@ contract TreasuryManager is
         uint64 index,
         uint256 amountX18,
         uint8 moduleIndex
-    ) private {
+    ) private withdrawIsEnable {
         OnChainLockConfig memory config = lockConfigMap[assetType][index];
         address token = config.asset;
 
@@ -767,6 +768,13 @@ contract TreasuryManager is
         if (otherModuleAddress[moduleIndex] == address(0x0)) {
             otherModuleAddress[moduleIndex] = _newAddress;
         }
+    }
+
+    modifier withdrawIsEnable() {
+        if (!_isWithdrawalAllowed()) {
+            revert WithdrawStopped();
+        }
+        _;
     }
 
     modifier onlyExchange() {

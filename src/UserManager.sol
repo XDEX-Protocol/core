@@ -103,6 +103,7 @@ contract UserManager is
 
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
+        SetupEmergencyStop(exchangeAddress, signerList_, threshold_);
 
         signerList = signerList_;
         threshold = threshold_;
@@ -243,7 +244,9 @@ contract UserManager is
         );
     }
 
-    function processActionPrepareWithdraw(bytes calldata data) internal {
+    function processActionPrepareWithdraw(
+        bytes calldata data
+    ) internal withdrawIsEnable {
         PrepareWithdrawInfo memory info = abi.decode(
             data[1:],
             (PrepareWithdrawInfo)
@@ -263,7 +266,9 @@ contract UserManager is
         emit UserWithdrawFinishPrepare(info.orderId);
     }
 
-    function processActionExecuteWithdraw(bytes calldata data) internal {
+    function processActionExecuteWithdraw(
+        bytes calldata data
+    ) internal withdrawIsEnable {
         ExecuteWithdrawInfo memory info = abi.decode(
             data[1:],
             (ExecuteWithdrawInfo)
@@ -644,6 +649,13 @@ contract UserManager is
         if (otherModuleAddress[moduleIndex] == address(0x0)) {
             otherModuleAddress[moduleIndex] = _newAddress;
         }
+    }
+
+    modifier withdrawIsEnable() {
+        if (!_isWithdrawalAllowed()) {
+            revert WithdrawStopped();
+        }
+        _;
     }
 
     modifier onlyExchange() {

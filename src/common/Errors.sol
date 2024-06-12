@@ -20,6 +20,8 @@ error InvalidDataLength();
 
 error ModuleNotInit(uint64 moduleIndex);
 
+error WithdrawStopped();
+
 // exchange errors
 error PreHashNotMatch(bytes32 want, bytes32 has);
 
