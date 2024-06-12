@@ -3,9 +3,8 @@ pragma solidity ^0.8.20;
 
 import "./IOffChainStruct.sol";
 import "./IEmergencyStop.sol";
-import "./IRefundDeposit.sol";
 
-interface IUserManager is IOffChainStruct, IEmergencyStop, IRefundDeposit {
+interface IUserManager is IOffChainStruct, IEmergencyStop {
     event UserDeposit(address from, address token, uint256 amountX18);
 
     event UserDepositConfirmed(

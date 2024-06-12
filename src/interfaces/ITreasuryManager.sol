@@ -4,14 +4,12 @@ pragma solidity ^0.8.20;
 import "./IOffChainStruct.sol";
 import "./IOnChainStruct.sol";
 import "./IEmergencyStop.sol";
-import "./IRefundDeposit.sol";
 import "./IReBalance.sol";
 
 interface ITreasuryManager is
     IOffChainStruct,
     IOnChainStruct,
     IEmergencyStop,
-    IRefundDeposit,
     IReBalance
 {
     event NewLockConfigAdded(

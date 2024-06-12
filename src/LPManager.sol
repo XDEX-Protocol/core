@@ -22,7 +22,6 @@ import "./interfaces/IVault.sol";
 import "./common/Constants.sol";
 import "./common/Errors.sol";
 import "./utils/EmergencyStop.sol";
-import "./utils/RefundDeposit.sol";
 import "./Pool.sol";
 import "./libraries/X18Helper.sol";
 
@@ -30,7 +29,6 @@ contract LPManager is
     ILPManager,
     IOnChainStruct,
     EmergencyStop,
-    RefundDeposit,
     Initializable,
     OwnableUpgradeable,
     UUPSUpgradeable,

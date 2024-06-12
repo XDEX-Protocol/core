@@ -21,13 +21,11 @@ import "./interfaces/IVault.sol";
 import "./common/Constants.sol";
 import "./common/Errors.sol";
 import "./utils/EmergencyStop.sol";
-import "./utils/RefundDeposit.sol";
 import "./libraries/X18Helper.sol";
 
 contract UserManager is
     IUserManager,
     EmergencyStop,
-    RefundDeposit,
     Initializable,
     OwnableUpgradeable,
     UUPSUpgradeable,

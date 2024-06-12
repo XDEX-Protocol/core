@@ -3,15 +3,9 @@ pragma solidity ^0.8.20;
 
 import "./IOffChainStruct.sol";
 import "./IEmergencyStop.sol";
-import "./IRefundDeposit.sol";
 import "./IReBalance.sol";
 
-interface ILPManager is
-    IOffChainStruct,
-    IEmergencyStop,
-    IRefundDeposit,
-    IReBalance
-{
+interface ILPManager is IOffChainStruct, IEmergencyStop, IReBalance {
     event NewPoolAdded(
         uint64 poolIndex,
         address poolAddress,
