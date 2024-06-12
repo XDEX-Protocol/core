@@ -47,4 +47,12 @@ interface IExchange is IOffChainStruct {
         address _newAddress,
         bytes[] calldata signList
     ) external;
+
+    function emergencyStopWithdraw(uint64 moduleIndex) external;
+
+    function startWithdraw(
+        uint64 moduleIndex,
+        uint256 nonce,
+        bytes[] calldata signList
+    ) external;
 }

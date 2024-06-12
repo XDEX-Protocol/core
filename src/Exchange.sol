@@ -15,6 +15,7 @@ import "./interfaces/ILPManager.sol";
 import "./interfaces/ITreasuryManager.sol";
 import "./common/Constants.sol";
 import "./common/Errors.sol";
+import "./utils/EmergencyStop.sol";
 
 contract Exchange is
     IExchange,
@@ -176,6 +177,29 @@ contract Exchange is
         }
 
         action2PreRequestId = requestId;
+    }
+
+    function emergencyStopWithdraw(uint64 moduleIndex) external onlySyncServer {
+        if (otherModuleAddress[moduleIndex] == address(0x0)) {
+            revert ModuleNotInit(moduleIndex);
+        }
+
+        EmergencyStop(otherModuleAddress[moduleIndex]).stopWithdraw();
+    }
+
+    function startWithdraw(
+        uint64 moduleIndex,
+        uint256 nonce,
+        bytes[] calldata signList
+    ) external {
+        if (otherModuleAddress[moduleIndex] == address(0x0)) {
+            revert ModuleNotInit(moduleIndex);
+        }
+
+        EmergencyStop(otherModuleAddress[moduleIndex]).startWithdraw(
+            nonce,
+            signList
+        );
     }
 
     function processPositionChange(bytes[] calldata transactions) private {
