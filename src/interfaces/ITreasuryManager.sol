@@ -12,6 +12,8 @@ interface ITreasuryManager is
     IEmergencyStop,
     IReBalance
 {
+    event WithdrawDisable();
+
     event NewLockConfigAdded(
         uint64 index,
         address lockAsset,

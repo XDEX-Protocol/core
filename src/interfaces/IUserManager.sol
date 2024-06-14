@@ -15,9 +15,10 @@ interface IUserManager is IOffChainStruct, IEmergencyStop {
         uint256 amountX18
     );
 
-    event UserWithdrawFinishPrepare(uint64 orderId);
+    event UserWithdrawFinishPrepare(bool accept, uint64 orderId);
 
     event UserWithdrawProcessed(
+        bool accept,
         uint64 orderId,
         uint64 uid,
         uint64 aid,

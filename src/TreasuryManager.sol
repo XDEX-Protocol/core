@@ -461,7 +461,7 @@ contract TreasuryManager is
         uint64 index,
         address[] memory recipients,
         uint256[] memory amountX18List
-    ) private withdrawIsEnable {
+    ) private {
         if (lockConfigMap[assetType][index].index != index) {
             revert InvalidLockConfig();
         }
@@ -527,7 +527,7 @@ contract TreasuryManager is
         address token,
         address[] memory recipients,
         uint256[] memory amountX18List
-    ) private withdrawIsEnable {
+    ) private {
         if (recipients.length != amountX18List.length) {
             revert InvalidDataLength();
         }
@@ -580,7 +580,12 @@ contract TreasuryManager is
         address token,
         uint256 amountX18,
         uint8 moduleIndex
-    ) private withdrawIsEnable {
+    ) private {
+        if (!_isWithdrawalAllowed()) {
+            emit WithdrawDisable();
+            return;
+        }
+
         uint256 canUseAmount = totalAsset[assetType][token];
         canUseAmount -= totalLockedAsset[assetType][token];
         canUseAmount -= usedUnlockAsset[assetType][token];
@@ -607,7 +612,12 @@ contract TreasuryManager is
         uint64 index,
         uint256 amountX18,
         uint8 moduleIndex
-    ) private withdrawIsEnable {
+    ) private {
+        if (!_isWithdrawalAllowed()) {
+            emit WithdrawDisable();
+            return;
+        }
+
         OnChainLockConfig memory config = lockConfigMap[assetType][index];
         address token = config.asset;
 

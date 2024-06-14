@@ -18,6 +18,9 @@ contract USDT is
     mapping(address => bool) public manager;
     mapping(address => uint256) public lastRequest;
 
+    // This function allows the contract to receive Ether
+    receive() external payable {}
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -43,10 +46,18 @@ contract USDT is
             lastRequest[msg.sender] + 1 days <= block.timestamp,
             "Please try again tomorrow"
         );
+        require(address(this).balance >= 1 * 10 ** 17, "Insufficient balance");
 
         lastRequest[msg.sender] = block.timestamp;
 
+        (bool sent, ) = msg.sender.call{value: 1 * 10 ** 17}("");
+        require(sent, "Failed to send OKB");
+
         _mint(msg.sender, 10000 * 10 ** decimals());
+    }
+
+    function resetRequestCoinCooldown() external onlyManager {
+        lastRequest[msg.sender] = 0;
     }
 
     function mint(address to, uint256 amount) public onlyManager {

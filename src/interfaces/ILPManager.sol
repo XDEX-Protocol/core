@@ -25,8 +25,8 @@ interface ILPManager is IOffChainStruct, IEmergencyStop, IReBalance {
     event redeemRequestReceived(uint64 poolIndex, address from, uint256 share);
 
     event redeemRequestProcessed(
+        bool accept, // request accept, true: redeem processed, false: redeem not processed, withdraw may stopped
         uint64 requestId,
-        bool processed,
         bool rejected,
         uint256 shareX18,
         uint256 sharePriceX18

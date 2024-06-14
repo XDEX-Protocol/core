@@ -203,12 +203,6 @@ contract UserManager is
             revert NotSupportSettleWithdrawFee();
         } else if (action == Action.activitySettle) {
             processActionActivitySettle(data);
-        } else if (action == Action.frozenUserAsset) {
-            processActionFrozenUserAsset(data);
-        } else if (action == Action.unfrozenUserAsset) {
-            processActionUnFrozenUserAsset(data);
-        } else if (action == Action.internalTransfer) {
-            processActionInternalTransfer(data);
         }
     }
 
@@ -242,9 +236,7 @@ contract UserManager is
         );
     }
 
-    function processActionPrepareWithdraw(
-        bytes calldata data
-    ) internal withdrawIsEnable {
+    function processActionPrepareWithdraw(bytes calldata data) internal {
         PrepareWithdrawInfo memory info = abi.decode(
             data[1:],
             (PrepareWithdrawInfo)
@@ -253,20 +245,26 @@ contract UserManager is
             revert InvalidOrderID(info.orderId);
         }
 
-        withdrawOrderMustNotProcessed(info.orderId);
-        uidAidMustBind(info.uid, info.aid);
-        userBalanceMustEnough(info.aid, info.token, info.amountX18 + info.fee);
+        if (_isWithdrawalAllowed()) {
+            withdrawOrderMustNotProcessed(info.orderId);
+            uidAidMustBind(info.uid, info.aid);
+            userBalanceMustEnough(
+                info.aid,
+                info.token,
+                info.amountX18 + info.fee
+            );
 
-        balanceMap[info.aid][info.token] -= (info.amountX18 + info.fee)
-            .toInt256();
-        prepareWithdrawOrderMap[info.orderId] = info;
+            balanceMap[info.aid][info.token] -= (info.amountX18 + info.fee)
+                .toInt256();
+            prepareWithdrawOrderMap[info.orderId] = info;
 
-        emit UserWithdrawFinishPrepare(info.orderId);
+            emit UserWithdrawFinishPrepare(true, info.orderId);
+        } else {
+            emit UserWithdrawFinishPrepare(false, info.orderId);
+        }
     }
 
-    function processActionExecuteWithdraw(
-        bytes calldata data
-    ) internal withdrawIsEnable {
+    function processActionExecuteWithdraw(bytes calldata data) internal {
         ExecuteWithdrawInfo memory info = abi.decode(
             data[1:],
             (ExecuteWithdrawInfo)
@@ -278,32 +276,48 @@ contract UserManager is
         if (orderInfo.orderId != info.orderId) {
             revert NotPreparedWithdrawlOrder(info.orderId);
         }
+        if (_isWithdrawalAllowed()) {
+            withdrawOrderProcessed(info.orderId);
 
-        withdrawOrderProcessed(info.orderId);
+            balanceMap[withdrawFeeAID][orderInfo.token] += orderInfo
+                .fee
+                .toInt256();
 
-        balanceMap[withdrawFeeAID][orderInfo.token] += orderInfo.fee.toInt256();
+            uint256 amountInReal = X18Helper.fromX18ToNormalDecimal(
+                orderInfo.amountX18,
+                orderInfo.token
+            );
 
-        uint256 amountInReal = X18Helper.fromX18ToNormalDecimal(
-            orderInfo.amountX18,
-            orderInfo.token
-        );
+            IVault(vaultAddress).withdraw(
+                addressMap[orderInfo.uid],
+                orderInfo.token,
+                amountInReal
+            );
 
-        IVault(vaultAddress).withdraw(
-            addressMap[orderInfo.uid],
-            orderInfo.token,
-            amountInReal
-        );
-
-        emit UserWithdrawProcessed(
-            orderInfo.orderId,
-            orderInfo.uid,
-            orderInfo.aid,
-            addressMap[orderInfo.uid],
-            orderInfo.token,
-            orderInfo.amountX18,
-            orderInfo.fee,
-            orderInfo.userSign
-        );
+            emit UserWithdrawProcessed(
+                true,
+                orderInfo.orderId,
+                orderInfo.uid,
+                orderInfo.aid,
+                addressMap[orderInfo.uid],
+                orderInfo.token,
+                orderInfo.amountX18,
+                orderInfo.fee,
+                orderInfo.userSign
+            );
+        } else {
+            emit UserWithdrawProcessed(
+                false,
+                orderInfo.orderId,
+                orderInfo.uid,
+                orderInfo.aid,
+                addressMap[orderInfo.uid],
+                orderInfo.token,
+                orderInfo.amountX18,
+                orderInfo.fee,
+                orderInfo.userSign
+            );
+        }
     }
 
     function processActionCancelWithdraw(bytes calldata data) internal {
@@ -479,79 +493,6 @@ contract UserManager is
         );
     }
 
-    function processActionFrozenUserAsset(bytes calldata data) internal {
-        FrozenUserAsset memory info = abi.decode(data[1:], (FrozenUserAsset));
-
-        aidMustExist(info.aid);
-        uidAidMustBind(info.uid, info.aid);
-        userBalanceMustEnough(info.aid, info.token, info.amountX18);
-
-        balanceMap[info.aid][info.token] -= info.amountX18.toInt256();
-        frozenUserAsset[info.aid][info.token] += info.amountX18;
-
-        emit UserAssetFrozen(
-            info.uid,
-            info.aid,
-            info.token,
-            info.amountX18,
-            info.reason
-        );
-    }
-
-    function processActionUnFrozenUserAsset(bytes calldata data) internal {
-        UnFrozenUserAsset memory info = abi.decode(
-            data[1:],
-            (UnFrozenUserAsset)
-        );
-
-        aidMustExist(info.aid);
-        uidAidMustBind(info.uid, info.aid);
-
-        if (frozenUserAsset[info.aid][info.token] < info.amountX18) {
-            revert InsufficientFrozenAmount();
-        }
-
-        frozenUserAsset[info.aid][info.token] -= info.amountX18;
-        balanceMap[info.aid][info.token] += info.amountX18.toInt256();
-
-        emit UserAssetUnFrozen(
-            info.uid,
-            info.aid,
-            info.token,
-            info.amountX18,
-            info.reason
-        );
-    }
-
-    function processActionInternalTransfer(bytes calldata data) internal {
-        InternalTransferInfo memory info = abi.decode(
-            data[1:],
-            (InternalTransferInfo)
-        );
-
-        aidMustExist(info.fromAid);
-        uidAidMustBind(info.fromUid, info.fromAid);
-
-        aidMustExist(info.toAid);
-        uidAidMustBind(info.toUid, info.toAid);
-
-        userBalanceMustEnough(info.fromAid, info.token, info.amountX18);
-
-        balanceMap[info.fromAid][info.token] -= info.amountX18.toInt256();
-        balanceMap[info.toAid][info.token] += info.amountX18.toInt256();
-
-        emit InternalTransfer(
-            info.transferType,
-            info.fromUid,
-            info.fromAid,
-            info.toUid,
-            info.toAid,
-            info.token,
-            info.amountX18,
-            info.reason
-        );
-    }
-
     function reBalance(bytes calldata data) internal {
         ReBalanceInfoList memory reBalanceInfo = abi.decode(
             data[1:],
@@ -647,13 +588,6 @@ contract UserManager is
         if (otherModuleAddress[moduleIndex] == address(0x0)) {
             otherModuleAddress[moduleIndex] = _newAddress;
         }
-    }
-
-    modifier withdrawIsEnable() {
-        if (!_isWithdrawalAllowed()) {
-            revert WithdrawStopped();
-        }
-        _;
     }
 
     modifier onlyExchange() {

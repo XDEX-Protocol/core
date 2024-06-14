@@ -366,7 +366,7 @@ contract LPManager is
         }
     }
 
-    function redeemPoolShare(bytes calldata data) private withdrawIsEnable {
+    function redeemPoolShare(bytes calldata data) private {
         RedeemPoolShareList memory resultList = abi.decode(
             data,
             (RedeemPoolShareList)
@@ -374,86 +374,100 @@ contract LPManager is
 
         for (uint256 i = 0; i < resultList.list.length; i++) {
             RedeemPoolShareInfo memory info = resultList.list[i];
-
             poolMustExist(info.poolIndex);
             if (processedRedeem[info.requestId]) {
                 revert RedeemRequestAlreadyProcessed(info.requestId);
             }
-            processedRedeem[info.requestId] = true;
 
-            address assetToken = poolConfig[info.poolIndex].availableToken;
-            uint8 _sharePriceDecimal = sharePriceDecimal[info.poolIndex];
+            if (_isWithdrawalAllowed()) {
+                processedRedeem[info.requestId] = true;
 
-            uint256 shareInReal = X18Helper.fromX18ToNormalDecimal(
-                info.shareX18,
-                poolAddress[info.poolIndex]
-            );
+                address assetToken = poolConfig[info.poolIndex].availableToken;
+                uint8 _sharePriceDecimal = sharePriceDecimal[info.poolIndex];
 
-            uint256 sharePriceInReal = X18Helper.fromX18ToNormalDecimal(
-                info.sharePriceX18,
-                _sharePriceDecimal
-            );
-
-            if (sharePriceInReal == 0) {
-                revert SharePriceCannotLessThanZereo();
-            }
-
-            if (info.reciprocalSharePriceX18 == 0) {
-                revert ReciprocalSharePriceCannotLessThanZereo();
-            }
-
-            uint256 reciprocalPoolSharePriceInReal = X18Helper
-                .fromX18ToNormalDecimal(
-                    info.reciprocalSharePriceX18,
+                uint256 shareInReal = X18Helper.fromX18ToNormalDecimal(
+                    info.shareX18,
                     poolAddress[info.poolIndex]
                 );
 
-            if (sharePriceInReal == 0 || reciprocalPoolSharePriceInReal == 0) {
-                revert InvalidSharePrice();
-            }
-
-            if (info.approved) {
-                IPool(poolAddress[info.poolIndex]).burnRedeemShare(shareInReal);
-
-                uint256 amountInReal = shareInReal * sharePriceInReal;
-                amountInReal = X18Helper.addAssetDecimal(
-                    amountInReal,
-                    assetToken
-                );
-                amountInReal = X18Helper.removeAssetDecimal(
-                    amountInReal,
-                    sharePriceDecimal[info.poolIndex]
-                );
-                amountInReal = X18Helper.removeAssetDecimal(
-                    amountInReal,
-                    poolAddress[info.poolIndex]
+                uint256 sharePriceInReal = X18Helper.fromX18ToNormalDecimal(
+                    info.sharePriceX18,
+                    _sharePriceDecimal
                 );
 
-                IVault(vaultAddress).withdraw(
-                    info.toAddress,
-                    assetToken,
-                    amountInReal
+                if (sharePriceInReal == 0) {
+                    revert SharePriceCannotLessThanZereo();
+                }
+
+                if (info.reciprocalSharePriceX18 == 0) {
+                    revert ReciprocalSharePriceCannotLessThanZereo();
+                }
+
+                uint256 reciprocalPoolSharePriceInReal = X18Helper
+                    .fromX18ToNormalDecimal(
+                        info.reciprocalSharePriceX18,
+                        poolAddress[info.poolIndex]
+                    );
+
+                if (
+                    sharePriceInReal == 0 || reciprocalPoolSharePriceInReal == 0
+                ) {
+                    revert InvalidSharePrice();
+                }
+
+                if (info.approved) {
+                    IPool(poolAddress[info.poolIndex]).burnRedeemShare(
+                        shareInReal
+                    );
+
+                    uint256 amountInReal = shareInReal * sharePriceInReal;
+                    amountInReal = X18Helper.addAssetDecimal(
+                        amountInReal,
+                        assetToken
+                    );
+                    amountInReal = X18Helper.removeAssetDecimal(
+                        amountInReal,
+                        sharePriceDecimal[info.poolIndex]
+                    );
+                    amountInReal = X18Helper.removeAssetDecimal(
+                        amountInReal,
+                        poolAddress[info.poolIndex]
+                    );
+
+                    IVault(vaultAddress).withdraw(
+                        info.toAddress,
+                        assetToken,
+                        amountInReal
+                    );
+                } else {
+                    IPool(poolAddress[info.poolIndex]).rejectRedeemShare(
+                        info.toAddress,
+                        shareInReal
+                    );
+                }
+
+                poolSharePrice[info.poolIndex] = sharePriceInReal;
+                reciprocalPoolSharePrices[info.poolIndex] = info
+                    .reciprocalSharePriceX18;
+
+                emit PoolShareValueUpdated(info.poolIndex, info.sharePriceX18);
+
+                emit redeemRequestProcessed(
+                    true,
+                    info.requestId,
+                    !info.approved,
+                    info.shareX18,
+                    poolSharePrice[info.poolIndex]
                 );
             } else {
-                IPool(poolAddress[info.poolIndex]).rejectRedeemShare(
-                    info.toAddress,
-                    shareInReal
+                emit redeemRequestProcessed(
+                    false,
+                    info.requestId,
+                    !info.approved,
+                    info.shareX18,
+                    poolSharePrice[info.poolIndex]
                 );
             }
-
-            poolSharePrice[info.poolIndex] = sharePriceInReal;
-            reciprocalPoolSharePrices[info.poolIndex] = info
-                .reciprocalSharePriceX18;
-
-            emit PoolShareValueUpdated(info.poolIndex, info.sharePriceX18);
-
-            emit redeemRequestProcessed(
-                info.requestId,
-                true,
-                !info.approved,
-                info.shareX18,
-                poolSharePrice[info.poolIndex]
-            );
         }
     }
 
